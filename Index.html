@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#173d68"><title>Genos Style Analyzer – Genos 1</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172536;background:#eef3f8}*{box-sizing:border-box}body{margin:0;padding:14px}.wrap{max-width:850px;margin:auto}header{background:#173d68;color:#fff;padding:22px;border-radius:18px;margin-bottom:14px}h1{font-size:23px;margin:0 0 5px}header p{margin:0;color:#dceafa}.panel{background:#fff;border:1px solid #d8e1eb;border-radius:16px;padding:16px;margin:12px 0}h2{font-size:18px;margin:0 0 12px}input[type=file]{width:100%;padding:14px;border:1px dashed #7b9fbe;border-radius:10px;background:#f7fbff;font-size:16px}button{background:#1d5f98;color:white;border:0;border-radius:10px;padding:12px 15px;font-size:15px;font-weight:650;margin:8px 6px 0 0}button.secondary{background:#e8eff6;color:#173d68}.status{font-weight:650;margin-top:12px;color:#17603b;overflow-wrap:anywhere}.muted{font-size:13px;color:#596b7e;line-height:1.5}.filetitle{font-weight:700;overflow-wrap:anywhere}.pill{display:inline-block;background:#e8f1fa;color:#174d7a;padding:4px 9px;border-radius:20px;font-size:12px;margin:3px 4px 3px 0}.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;min-width:650px}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #e4eaf0}th{background:#f2f6fa;position:sticky;top:0}.empty{padding:16px;background:#f7f9fb;border-radius:10px;color:#596b7e}.actions{display:flex;flex-wrap:wrap}.warning{background:#fff8e8;border:1px solid #f0dfb5;border-radius:10px;padding:11px;color:#6d531c}.hidden{display:none}@media(max-width:600px){body{padding:10px}header{padding:18px}h1{font-size:21px}.panel{padding:13px}}
+@media print{body{background:#fff;padding:0}.wrap{max-width:none}header{background:#fff;color:#111;border:1px solid #bbb}header p{color:#333}.panel{break-inside:avoid;border:1px solid #bbb;box-shadow:none}#uploadPanel,.actions,.muted.print-hide{display:none!important}table{min-width:0;font-size:11px}th,td{padding:6px}}
+</style></head>
+<body><main class="wrap">
+<header><h1>GENOS STYLE ANALYZER</h1><p>Yamaha Genos 1 · Einzelnen PRS-Style untersuchen</p></header>
+<section class="panel" id="uploadPanel"><h2>Style-Datei auswählen</h2><input id="styleFile" type="file" accept=".prs,.sty,.mid,.midi,application/octet-stream"><div class="actions"><button id="analyze">Style analysieren</button><button class="secondary" id="reset">Zurücksetzen</button></div><div id="status" class="status" aria-live="polite"></div><p class="muted">Die Datei wird ausschließlich lokal in diesem Browser ausgewertet. Sie wird nicht hochgeladen. Wähle die PRS-Datei über die Dateien-App aus.</p></section>
+<section id="results" class="hidden">
+ <div class="panel"><div class="filetitle" id="filename"></div><div id="summary"></div></div>
+ <div class="panel"><h2>Instrumentenzuweisungen</h2><div class="tablewrap"><table><thead><tr><th>Style-Part</th><th>MIDI-Kanal</th><th>MSB</th><th>LSB</th><th>Program Change</th><th>Yamaha Voice</th></tr></thead><tbody id="programRows"></tbody></table></div><p class="muted">Program Change wird in Yamaha-Zählweise 1–128 angezeigt. Die Style-Parts werden für die Kanäle 9–16 zugeordnet. Voice-Namen erscheinen nur bei exakt passender MSB-/LSB-/PC-Kombination aus der Genos-1-Datenliste.</p></div>
+ <div class="panel"><h2>Style-Abschnitte</h2><div id="markers"></div></div>
+ <div class="panel"><h2>Weitere MIDI-Spurinformationen</h2><div id="tracks"></div></div>
+ <div class="panel actions"><button id="csv">Excel-Datei (CSV) exportieren</button><button class="secondary" id="pdf">Als PDF speichern / drucken</button></div>
+</section>
+<section class="panel"><h2>Hinweis zur Auswertung</h2><div class="warning">Diese Version ordnet die Genos-Style-Parts den MIDI-Kanälen 9–16 zu. Voice-Namen werden anhand der MSB-/LSB-/Program-Change-Kombination mit der bereitgestellten Genos-1-Datenliste abgeglichen. Nicht gefundene Kombinationen bleiben ausdrücklich als nicht zugeordnet stehen.</div><p class="muted">Mehrere Programmwechsel innerhalb eines Style-Parts werden einzeln angezeigt. So bleiben auch spätere Voice-Wechsel sichtbar.</p></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);let exportRows=[],currentName='';
+const PARTS={9:'Rhythm 1',10:'Rhythm 2',11:'Bass',12:'Chord 1',13:'Chord 2',14:'Pad',15:'Phrase 1',16:'Phrase 2'};
+/* Verified against the supplied Genos 1 Data List. PC values here use Yamaha's 1–128 numbering. */
+const VOICES={
+ '127:8:18':'RockDrumKit','127:0:73':'SchlagerKit',
+ '8:3:18':'ActiveBassFingHmrOn','104:22:1':'C7 StudioGrand',
+ '8:14:2':'D&WarmFolkTwin1','104:25:91':'TrancyChordz',
+ '8:3:4':'SingleCoilGuitar','104:24:91':'PunchyChordz',
+ '104:21:91':'HandsUp!',
+ '127:0:90':'AcousticKit','127:0:59':'AnalogT8Kit',
+ '8:5:18':'ActiveBassFingSlap','0:115:6':'ModernEP',
+ '8:0:1':'NylonGuitar','104:0:90':'VP Soft',
+ '104:0:92':'BreathPad'
+};
+function voiceName(e){return e.msb==null||e.lsb==null?'Nicht vollständig':(VOICES[[e.msb,e.lsb,e.program].join(':')]||'Nicht in der Genos-1-Datenliste zugeordnet')}
+function ascii(b,p,n){return String.fromCharCode(...b.subarray(p,p+n))}
+function vlq(b,s,end){let v=0,c=0,x;do{if(s.i>=end||c++>4)throw Error('Ungültige MIDI-Längenangabe.');x=b[s.i++];v=(v<<7)|(x&127)}while(x&128);return v}
+function parseMidi(buf){const b=new Uint8Array(buf),dv=new DataView(buf);if(b.length<14||ascii(b,0,4)!=='MThd')throw Error('Kein Standard-MIDI-Header. Die Datei scheint kein unterstützter PRS-Style zu sein.');const h=dv.getUint32(4,false),format=dv.getUint16(8,false),count=dv.getUint16(10,false);let p=8+h,events=[],markers=[],trackNames=[],sections=new Set(),allTracks=[];
+for(let t=0;t<count;t++){if(p+8>b.length||ascii(b,p,4)!=='MTrk')throw Error('MIDI-Track '+(t+1)+' fehlt.');const len=dv.getUint32(p+4,false),start=p+8,end=start+len;if(end>b.length)throw Error('MIDI-Track ist abgeschnitten.');let s={i:start},running=0,tick=0;const state={};let trackLabel='MIDI-Track '+(t+1);
+while(s.i<end){tick+=vlq(b,s,end);let st=b[s.i];if(st<128){if(!running)throw Error('MIDI-Statusbyte fehlt.');st=running}else s.i++;
+if(st===255){running=0;if(s.i>=end)break;const typ=b[s.i++],n=vlq(b,s,end),data=b.subarray(s.i,s.i+n);s.i+=n;const txt=new TextDecoder().decode(data).replace(/\0/g,'').trim();if(typ===6&&txt){markers.push(txt);if(/^(Main|Fill In|Intro|Ending)/i.test(txt))sections.add(txt)}if(typ===3&&txt){trackNames.push(txt);trackLabel=txt} }
+else if(st===240||st===247){running=0;const n=vlq(b,s,end);s.i+=n}
+else if(st>=240){running=0;const n=({241:1,242:2,243:1,246:0,248:0,250:0,251:0,252:0,254:0})[st]??0;s.i+=n}
+else{running=st;const cmd=st&240,ch=(st&15)+1,n=(cmd===192||cmd===208)?1:2;if(s.i+n>end)throw Error('Unvollständige MIDI-Nachricht.');const a=b[s.i++],v=n===2?b[s.i++]:0;let q=state[ch]||(state[ch]={msb:null,lsb:null});if(cmd===176&&a===0)q.msb=v;if(cmd===176&&a===32)q.lsb=v;if(cmd===192)events.push({channel:ch,msb:q.msb,lsb:q.lsb,program:a+1,tick,track:trackLabel});}}
+allTracks.push(trackLabel);p=end;}
+// Keep every unique assignment, not merely the final program per channel.
+const unique=new Map();for(const e of events){const k=[e.channel,e.msb,e.lsb,e.program].join(':');if(!unique.has(k))unique.set(k,e)}
+return {format,count,events:[...unique.values()].sort((a,b)=>a.channel-b.channel||a.tick-b.tick),markers:[...new Set(markers)],sections:[...sections],trackNames,allTracks};}
+function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function analyze(){const f=$('styleFile').files?.[0];$('status').textContent='';$('results').classList.add('hidden');if(!f){$('status').textContent='Bitte zuerst eine PRS-Datei auswählen.';return}try{$('status').textContent='Lese Datei …';const d=parseMidi(await f.arrayBuffer());currentName=f.name;exportRows=d.events;$('filename').textContent=f.name;$('summary').innerHTML=`<span class="pill">Format: MIDI ${d.format}</span><span class="pill">${d.count} MIDI-Track(s)</span><span class="pill">${d.events.length} eindeutige Programmzuweisungen</span><span class="pill">${d.sections.length} erkannte Abschnittsnamen</span>`;
+$('programRows').innerHTML=d.events.length?d.events.map(e=>`<tr><td>${PARTS[e.channel]||'Zusatzkanal'}</td><td>${e.channel}</td><td>${e.msb??'–'}</td><td>${e.lsb??'–'}</td><td>${e.program}</td><td>${esc(voiceName(e))}</td></tr>`).join(''):'<tr><td colspan="6">Keine Program-Change-Befehle gefunden.</td></tr>';
+$('markers').innerHTML=d.sections.length?d.sections.map(x=>`<span class="pill">${esc(x)}</span>`).join(''):'<div class="empty">Keine Abschnittsmarker gefunden.</div>';
+$('tracks').innerHTML=d.allTracks.length?'<ul>'+d.allTracks.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>':'<div class="empty">Keine Tracknamen vorhanden.</div>';$('results').classList.remove('hidden');$('status').textContent='Analyse abgeschlossen.';
+}catch(e){$('status').textContent='Fehler: '+e.message}}
+function csv(){if(!exportRows.length)return;const lines=[['Datei','Style-Part','MIDI-Kanal','Bank MSB','Bank LSB','Program Change','Voice-Name','Tick','MIDI-Track'],...exportRows.map(e=>[currentName,PARTS[e.channel]||'Zusatzkanal',e.channel,e.msb??'',e.lsb??'',e.program,voiceName(e),e.tick,e.track])];const data='\ufeff'+lines.map(r=>r.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');const a=document.createElement('a'),u=URL.createObjectURL(new Blob([data],{type:'text/csv;charset=utf-8'}));a.href=u;a.download=currentName.replace(/\.[^.]+$/,'')+'_Genos1_Analyse.csv';a.click();URL.revokeObjectURL(u)}
+$('analyze').addEventListener('click',analyze);$('reset').addEventListener('click',()=>{$('styleFile').value='';$('status').textContent='Zurückgesetzt.';$('results').classList.add('hidden');exportRows=[]});$('csv').addEventListener('click',csv);$('pdf').addEventListener('click',()=>window.print());
+</script></body></html>
